@@ -1,0 +1,167 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-rgb: 244, 245, 247;
+  --column-bg: 255, 255, 255;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: rgb(var(--background-rgb));
+  height: 100vh;
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+.board-container {
+  @apply min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-8;
+}
+
+.board-header {
+  @apply mb-12 flex flex-col gap-6 max-w-4xl mx-auto;
+}
+
+.board-header h1 {
+  @apply text-3xl font-bold text-gray-800 tracking-tight;
+}
+
+.board-content {
+  @apply flex gap-8 max-w-6xl mx-auto;
+}
+
+.column-wrapper {
+  @apply w-96 flex-shrink-0;
+}
+
+.column {
+  @apply bg-white/80 backdrop-blur-sm rounded-xl shadow-md border border-gray-100
+    transition-colors duration-200;
+}
+
+.column.drag-over {
+  @apply bg-blue-50/50 border-blue-200;
+}
+
+.column-header {
+  @apply p-4 border-b border-gray-100 bg-gray-50/80 rounded-t-xl;
+}
+
+.column-title {
+  @apply text-sm font-semibold text-gray-600 tracking-wide uppercase;
+}
+
+.droppable-area {
+  @apply min-h-[400px] p-4 relative;
+}
+
+.droppable-area.is-over {
+  @apply bg-blue-50/50;
+}
+
+/* 拖拽占位符样式 */
+[data-rbd-placeholder-context-id] {
+  @apply transition-all duration-200;
+}
+
+[data-rbd-placeholder-context-id] > div {
+  @apply border-2 border-dashed border-blue-300 bg-blue-50/30
+    rounded-lg h-[60px] mb-3;
+}
+
+/* 隐藏原始占位符 */
+[data-rbd-placeholder-context-id]:empty {
+  @apply hidden;
+}
+
+/* 确保拖拽项始终显示在最上层 */
+[data-rbd-draggable-context-id] {
+  @apply relative z-10;
+}
+
+/* 拖拽时确保显示在最上层 */
+[data-rbd-drag-handle-draggable-id] {
+  @apply relative z-20;
+}
+
+/* 拖拽时的容器样式 */
+[data-rbd-droppable-context-id] {
+  @apply relative;
+}
+
+.card {
+  @apply p-4 rounded-lg shadow-sm mb-3 
+    hover:shadow-md transition-all duration-200
+    border border-gray-200 bg-white relative
+    cursor-grab active:cursor-grabbing;
+}
+
+.card.dragging {
+  @apply shadow-xl scale-105 border-2 border-blue-500 bg-blue-50
+    cursor-grabbing pointer-events-auto rotate-1;
+}
+
+.card.dragging * {
+  pointer-events: none;
+}
+
+.add-task-section {
+  @apply w-full max-w-md;
+}
+
+.add-task-button {
+  @apply flex items-center gap-2 px-4 py-2.5 text-blue-500
+    rounded-lg transition-all duration-300 font-medium text-sm
+    border border-blue-100 hover:border-blue-200
+    bg-white/90 hover:bg-blue-50/50
+    shadow-sm hover:shadow-sm
+    transform hover:-translate-y-0.5;
+}
+
+.add-task-button svg {
+  @apply w-4 h-4 text-blue-400;
+}
+
+.add-task-form {
+  @apply bg-white/90 backdrop-blur-sm p-5 rounded-lg shadow-sm border border-gray-100;
+}
+
+.task-input {
+  @apply w-full px-4 py-2.5 border border-gray-200 rounded-lg mb-3
+    focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+    text-sm placeholder-gray-400;
+}
+
+.task-form-buttons {
+  @apply flex gap-3;
+}
+
+.submit-button {
+  @apply px-4 py-2 bg-blue-500 text-white rounded-lg
+    hover:bg-blue-600 transition-all duration-200
+    font-medium text-sm shadow-sm;
+}
+
+.cancel-button {
+  @apply px-4 py-2 text-gray-500 hover:bg-gray-50/80
+    rounded-lg transition-all duration-200
+    font-medium text-sm border border-gray-100
+    hover:border-gray-200;
+}
+
+/* 拖拽时的列样式 */
+.column.drag-over {
+  @apply bg-blue-50/50 border-blue-200;
+}
+
+/* 拖拽时的卡片样式 */
+.card.dragging {
+  @apply shadow-xl scale-105 border-2 border-blue-500 bg-blue-50
+    cursor-grabbing pointer-events-auto rotate-1;
+}
+
+.card.dragging * {
+  pointer-events: none;
+}
