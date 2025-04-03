@@ -1,22 +1,15 @@
 import { forwardRef } from 'react';
 
 interface Props {
-  children: React.ReactNode;
+  content: string;
+  getTaskBackground: (content: string) => string;
   className?: string;
-  style?: React.CSSProperties;
 }
 
-export const TaskCard = forwardRef<HTMLDivElement, Props>(
-  ({ children, className = '', style, ...props }, ref) => {
-    return (
-      <div
-        ref={ref}
-        style={style}
-        className={`card ${className}`}
-        {...props}
-      >
-        {children}
-      </div>
-    );
-  }
-); 
+export function TaskCard({ content, getTaskBackground, className = '' }: Props) {
+  return (
+    <div className={`card ${getTaskBackground(content)} ${className}`}>
+      {content}
+    </div>
+  );
+} 

@@ -1,59 +1,244 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   DndContext,
   DragOverlay,
-  closestCenter,
+  closestCorners,
   KeyboardSensor,
   PointerSensor,
   useSensor,
   useSensors,
   DragStartEvent,
   DragEndEvent,
-  DragOverEvent,
+  useDndMonitor,
+  Over,
+  DragMoveEvent,
 } from '@dnd-kit/core';
 import {
   arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 
 import { SortableItem } from '../components/SortableItem';
 import { TaskCard } from '../components/TaskCard';
+import { DroppableColumn } from '../components/DroppableColumn';
+import { Items, Task } from '../types';
+import { DefaultSameContainerStrategy, DefaultCrossContainerStrategy } from '../utils/sortingStrategies';
 
-interface Task {
-  id: string;
-  content: string;
-  status: 'in_progress' | 'done';
+// 创建一个单独的组件来使用useDndMonitor
+function DragMonitor({ 
+  onDragMove, 
+  onDragStart, 
+  onDragEnd 
+}: { 
+  onDragMove: (over: Over | null) => void;
+  onDragStart: (activeId: string) => void;
+  onDragEnd: () => void;
+}) {
+  useDndMonitor({
+    onDragStart({ active }) {
+      onDragStart(active.id as string);
+    },
+    onDragMove({ over }) {
+      onDragMove(over);
+    },
+    onDragEnd() {
+      onDragEnd();
+    }
+  });
+  return null;
+}
+
+function useBoardManager(initialState: Items) {
+  const [items, setItems] = useState<Items>(initialState);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [targetContainer, setTargetContainer] = useState<keyof Items | null>(null);
+  const [hoverIndex, setHoverIndex] = useState<number>(-1);
+  const [isOverColumn, setIsOverColumn] = useState(false);
+  const [isCrossColumn, setIsCrossColumn] = useState(false);
+
+  const findContainer = useCallback((id: string) => {
+    if (id === 'in_progress' || id === 'done') {
+      return id as keyof Items;
+    }
+    
+    if (items.in_progress.some(task => task.id === id)) return 'in_progress';
+    if (items.done.some(task => task.id === id)) return 'done';
+    return null;
+  }, [items]);
+
+  const updatePlaceholderPosition = useCallback((over: Over | null) => {
+    if (!over) {
+      setHoverIndex(-1);
+      setTargetContainer(null);
+      setIsOverColumn(false);
+      return;
+    }
+
+    const overContainer = findContainer(over.id as string);
+    if (!overContainer) return;
+
+    // If dragging over a column
+    if (over.id === 'in_progress' || over.id === 'done') {
+      setTargetContainer(over.id as keyof Items);
+      
+      // Get the dragged task content
+      const draggedTask = activeId ? 
+        [...items.in_progress, ...items.done].find(task => task.id === activeId) : 
+        null;
+      
+      if (draggedTask) {
+        // Find the position based on task name
+        const targetItems = items[over.id as keyof Items];
+        const insertIndex = targetItems.findIndex(item => 
+          item.content.localeCompare(draggedTask.content) > 0
+        );
+        setHoverIndex(insertIndex >= 0 ? insertIndex : targetItems.length);
+      } else {
+        setHoverIndex(items[over.id as keyof Items].length);
+      }
+      
+      setIsOverColumn(true);
+      return;
+    }
+
+    // If dragging over a task
+    const overIndex = items[overContainer].findIndex(task => task.id === over.id);
+    setTargetContainer(overContainer);
+    
+    // Get the dragged task and target task
+    const draggedTask = activeId ? 
+      [...items.in_progress, ...items.done].find(task => task.id === activeId) : 
+      null;
+    const overTask = items[overContainer][overIndex];
+    
+    if (draggedTask && overTask) {
+      // If dragged task name is less than target task name, place before target
+      if (draggedTask.content.localeCompare(overTask.content) < 0) {
+        setHoverIndex(overIndex);
+      } else {
+        setHoverIndex(overIndex + 1);
+      }
+    } else {
+      setHoverIndex(overIndex);
+    }
+    
+    setIsOverColumn(false);
+  }, [activeId, findContainer, items]);
+
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    const id = event.active.id;
+    if (typeof id === 'string') {
+      setActiveId(id);
+    }
+  }, []);
+
+  const sameContainerStrategy = new DefaultSameContainerStrategy();
+  const crossContainerStrategy = new DefaultCrossContainerStrategy();
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over) return;
+
+    const activeId = active.id as string;
+    const overId = over.id as string;
+
+    if (activeId === overId) return;
+
+    const activeContainer = findContainer(activeId);
+    const overContainer = findContainer(overId) as keyof Items;
+
+    if (!activeContainer || !overContainer) return;
+
+    setItems((prev) => {
+      if (activeContainer === overContainer) {
+        return sameContainerStrategy.sort(prev, activeId, overId);
+      } else {
+        return crossContainerStrategy.sort(prev, activeId, overId, hoverIndex);
+      }
+    });
+
+    resetState();
+  }, [findContainer, hoverIndex]);
+
+  const handleDragCancel = useCallback(() => {
+    resetState();
+  }, []);
+
+  const resetState = useCallback(() => {
+    setActiveId(null);
+    setTargetContainer(null);
+    setHoverIndex(-1);
+    setIsOverColumn(false);
+    setIsCrossColumn(false);
+  }, []);
+
+  const handleAddTask = useCallback((content: string) => {
+    if (content.trim()) {
+      setItems(prev => ({
+        ...prev,
+        in_progress: [
+          ...prev.in_progress,
+          {
+            id: Date.now().toString(),
+            content,
+          },
+        ],
+      }));
+    }
+  }, []);
+
+  return {
+    items,
+    activeId,
+    hoverIndex,
+    isOverColumn,
+    isCrossColumn,
+    targetContainer,
+    findContainer,
+    updatePlaceholderPosition,
+    handleDragStart,
+    handleDragEnd,
+    handleDragCancel,
+    handleAddTask,
+    resetState
+  };
 }
 
 export default function Home() {
-  const [tasks, setTasks] = useState<Task[]>([
-    {
-      id: '1',
-      content: 'Task A',
-      status: 'in_progress',
-    },
-    {
-      id: '2',
-      content: 'Task B',
-      status: 'in_progress',
-    },
-    {
-      id: '3',
-      content: 'Task C',
-      status: 'done',
-    },
-  ]);
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const {
+    items,
+    activeId,
+    hoverIndex,
+    isOverColumn,
+    isCrossColumn,
+    targetContainer,
+    findContainer,
+    updatePlaceholderPosition,
+    handleDragStart,
+    handleDragEnd,
+    handleDragCancel,
+    handleAddTask,
+    resetState
+  } = useBoardManager({
+    in_progress: [
+      { id: 'task-1', content: 'Task A' },
+      { id: 'task-2', content: 'Task B' },
+    ],
+    done: [
+      { id: 'task-3', content: 'Task C' },
+    ],
+  });
+
   const [newTask, setNewTask] = useState('');
   const [isAddingTask, setIsAddingTask] = useState(false);
-  const [dragOverStatus, setDragOverStatus] = useState<'in_progress' | 'done' | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
-        distance: 5,
+        distance: 8,
+        tolerance: 5,
+        delay: 0,
       },
     }),
     useSensor(KeyboardSensor, {
@@ -61,85 +246,7 @@ export default function Home() {
     })
   );
 
-  const handleDragStart = (event: DragStartEvent) => {
-    const id = event.active.id;
-    if (typeof id === 'string') {
-      setActiveId(id);
-    }
-  };
-
-  const handleDragOver = (event: DragOverEvent) => {
-    const activeTask = tasks.find((task) => task.id === event.active.id);
-    const overTask = tasks.find((task) => task.id === event.over?.id);
-
-    if (!activeTask || !overTask) {
-      setDragOverStatus(null);
-      return;
-    }
-
-    if (activeTask.status !== overTask.status) {
-      setDragOverStatus(overTask.status);
-    }
-  };
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    
-    if (!over) {
-      setActiveId(null);
-      setDragOverStatus(null);
-      return;
-    }
-
-    const activeTask = tasks.find((task) => task.id === active.id);
-    const overTask = tasks.find((task) => task.id === over.id);
-
-    if (!activeTask || !overTask) {
-      setActiveId(null);
-      setDragOverStatus(null);
-      return;
-    }
-
-    if (activeTask.status !== overTask.status) {
-      setTasks(tasks.map((task) => {
-        if (task.id === activeTask.id) {
-          return { ...task, status: overTask.status };
-        }
-        return task;
-      }));
-    } else if (active.id !== over.id) {
-      setTasks((tasks) => {
-        const oldIndex = tasks.findIndex((task) => task.id === active.id);
-        const newIndex = tasks.findIndex((task) => task.id === over.id);
-        return arrayMove(tasks, oldIndex, newIndex);
-      });
-    }
-
-    setActiveId(null);
-    setDragOverStatus(null);
-  };
-
-  const handleDragCancel = () => {
-    setActiveId(null);
-    setDragOverStatus(null);
-  };
-
-  const handleAddTask = () => {
-    if (newTask.trim()) {
-      setTasks([
-        ...tasks,
-        {
-          id: Date.now().toString(),
-          content: newTask,
-          status: 'in_progress',
-        },
-      ]);
-      setNewTask('');
-      setIsAddingTask(false);
-    }
-  };
-
-  const getTaskBackground = (content: string) => {
+  const getTaskBackground = useCallback((content: string) => {
     switch (content) {
       case 'Task A':
         return 'bg-blue-200 border-blue-300 text-blue-900 font-medium';
@@ -150,21 +257,35 @@ export default function Home() {
       default:
         return 'bg-slate-200 border-slate-300 text-slate-900 font-medium';
     }
-  };
+  }, []);
 
-  const activeTask = activeId ? tasks.find(task => task.id === activeId) : null;
-  const inProgressTasks = tasks.filter((task) => task.status === 'in_progress');
-  const doneTasks = tasks.filter((task) => task.status === 'done');
+  const handleAddTaskClick = () => {
+    if (newTask.trim()) {
+      handleAddTask(newTask);
+      setNewTask('');
+      setIsAddingTask(false);
+    }
+  };
 
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCenter}
+      collisionDetection={closestCorners}
       onDragStart={handleDragStart}
-      onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
+      onDragOver={({ active, over }) => {
+        if (!over) return;
+        updatePlaceholderPosition(over);
+      }}
     >
+      <DragMonitor 
+        onDragMove={updatePlaceholderPosition} 
+        onDragStart={(id) => {
+          // 不需要在这里设置activeId，因为handleDragStart已经设置了
+        }}
+        onDragEnd={resetState}
+      />
       <div className="board-container">
         <div className="board-header">
           <h1 className="text-2xl font-medium text-gray-800">Task Management</h1>
@@ -175,8 +296,8 @@ export default function Home() {
                 onClick={() => setIsAddingTask(true)}
                 className="add-task-button"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                  <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
                 </svg>
                 Add Task
               </button>
@@ -189,11 +310,11 @@ export default function Home() {
                   placeholder="Please enter the task name."
                   className="task-input"
                   autoFocus
-                  onKeyPress={(e) => e.key === 'Enter' && handleAddTask()}
+                  onKeyPress={(e) => e.key === 'Enter' && handleAddTaskClick()}
                 />
                 <div className="task-form-buttons">
                   <button
-                    onClick={handleAddTask}
+                    onClick={handleAddTaskClick}
                     className="submit-button"
                   >
                     Add Task
@@ -208,75 +329,63 @@ export default function Home() {
                     Cancel
                   </button>
                 </div>
-              </div>
-            )}
+                          </div>
+                        )}
           </div>
-        </div>
+                  </div>
 
         <div className="board-content">
           <div className="column-wrapper">
-            <div className={`column ${dragOverStatus === 'in_progress' ? 'drag-over' : ''}`}>
-              <div className="column-header">
-                <h2 className="column-title">IN PROGRESS</h2>
-              </div>
-              <div className="droppable-area">
-                <SortableContext
-                  items={inProgressTasks.map(task => task.id)}
-                  strategy={verticalListSortingStrategy}
-                >
-                  {inProgressTasks.map((task) => (
-                    <SortableItem 
-                      key={task.id} 
-                      id={task.id}
-                      className={getTaskBackground(task.content)}
-                      currentStatus="in_progress"
-                    >
-                      {task.content}
-                    </SortableItem>
-                  ))}
-                </SortableContext>
-              </div>
-            </div>
+            <DroppableColumn
+              id="in_progress"
+              title="IN PROGRESS"
+              items={items.in_progress}
+              getTaskBackground={getTaskBackground}
+              activeId={activeId || undefined}
+              hoverIndex={targetContainer === 'in_progress' ? hoverIndex : undefined}
+            />
           </div>
 
           <div className="column-wrapper">
-            <div className={`column ${dragOverStatus === 'done' ? 'drag-over' : ''}`}>
-              <div className="column-header">
-                <h2 className="column-title">DONE</h2>
-              </div>
-              <div className="droppable-area">
-                <SortableContext
-                  items={doneTasks.map(task => task.id)}
-                  strategy={verticalListSortingStrategy}
-                >
-                  {doneTasks.map((task) => (
-                    <SortableItem 
-                      key={task.id} 
-                      id={task.id}
-                      className={getTaskBackground(task.content)}
-                      currentStatus="done"
-                    >
-                      {task.content}
-                    </SortableItem>
-                  ))}
-                </SortableContext>
-              </div>
-            </div>
+            <DroppableColumn
+              id="done"
+              title="DONE"
+              items={items.done}
+              getTaskBackground={getTaskBackground}
+              activeId={activeId || undefined}
+              hoverIndex={targetContainer === 'done' ? hoverIndex : undefined}
+            />
           </div>
-        </div>
+      </div>
 
-        <DragOverlay>
+        <DragOverlay 
+          dropAnimation={null}
+          adjustScale={false}
+        >
           {activeId ? (
             <TaskCard 
-              className={getTaskBackground(
-                tasks.find(task => task.id === activeId)?.content || ''
-              )}
-            >
-              {tasks.find(task => task.id === activeId)?.content}
-            </TaskCard>
+              content={[...items.in_progress, ...items.done].find(task => task.id === activeId)?.content || ''}
+              getTaskBackground={getTaskBackground}
+              className="dragging"
+            />
           ) : null}
         </DragOverlay>
       </div>
     </DndContext>
   );
+}
+
+function moveWithinContainer(
+  items: Items,
+  container: keyof Items,
+  activeId: string,
+  overId: string
+) {
+  const oldIndex = items[container].findIndex(task => task.id === activeId);
+  const newIndex = items[container].findIndex(task => task.id === overId);
+
+  return {
+    ...items,
+    [container]: arrayMove(items[container], oldIndex, newIndex),
+  };
 } 

@@ -1,19 +1,22 @@
+import { memo } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { TaskCard } from './TaskCard';
 
 interface Props {
   id: string;
-  children: React.ReactNode;
-  className?: string;
-  currentStatus: 'in_progress' | 'done';
+  content: string;
+  getTaskBackground: (content: string) => string;
+  isOverColumn?: boolean;
+  activeId?: string;
 }
 
-export function SortableItem({ 
+export const SortableItem = memo(function SortableItem({ 
   id, 
-  children, 
-  className,
-  currentStatus,
+  content,
+  getTaskBackground,
+  isOverColumn,
+  activeId,
 }: Props) {
   const {
     attributes,
@@ -25,20 +28,23 @@ export function SortableItem({
   } = useSortable({ id });
 
   const style = {
-    transform: CSS.Transform.toString(transform),
     transition,
+    transform: CSS.Transform.toString(transform),
     opacity: isDragging ? 0 : 1,
   };
 
   return (
-    <TaskCard
+    <div
       ref={setNodeRef}
       style={style}
-      className={`${className} ${isDragging ? 'dragging' : ''}`}
       {...attributes}
       {...listeners}
     >
-      {children}
-    </TaskCard>
+      <TaskCard
+        content={content}
+        getTaskBackground={getTaskBackground}
+        className={isDragging ? 'dragging' : ''}
+      />
+    </div>
   );
-} 
+}); 
