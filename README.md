@@ -27,13 +27,10 @@ make help
 
 # 仅安装依赖
 make install
-```
 
-Note: If the downloading speed is too slow for 'npm install', please change to domestic mirror:
-```bash
+#注意: 如果npm install下载速度太慢, 请切换到国内的镜像:
 npm config set registry https://registry.npmmirror.com
-```
-```bash
+
 # 安装依赖并启动开发服务器
 make start
 
@@ -63,8 +60,6 @@ make test-coverage
 .
 ├── __tests__/     # 测试文件
 │   ├── components/  # 组件测试
-│   ├── pages/      # 页面测试
-│   └── utils/      # 工具函数测试
 ├── components/    # React 组件
 ├── pages/         # Next.js 页面
 ├── styles/        # 全局样式和 Tailwind 配置
