@@ -17,9 +17,9 @@
 确保你已安装:
 - Node.js 14.0 或更高版本
 - npm 6.0 或更高版本
-- make（可选，推荐）
+- make
 
-### 使用 make（推荐）
+### 使用 make
 
 ```bash
 # 显示所有可用命令
@@ -51,28 +51,6 @@ make test-watch
 
 # 生成测试覆盖率报告
 make test-coverage
-```
-
-### 不使用 make
-
-```bash
-# 安装依赖
-npm install
-
-# 启动开发服务器
-npm run dev
-
-# 构建生产版本
-npm run build
-
-# 运行测试
-npm test
-
-# 以监视模式运行测试
-npm run test:watch
-
-# 生成测试覆盖率报告
-npm run test:coverage
 ```
 
 ## 开发
